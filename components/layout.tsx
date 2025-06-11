@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import {
   Bell,
   Hexagon,
@@ -56,15 +56,31 @@ export default function Layout({ children }: LayoutProps) {
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  // Simulate data loading
+  // 优化的粒子效果
+  const particleEffect = useMemo(() => {
+    if (typeof window === 'undefined') return null
+    
+    return {
+      particles: Array.from({ length: 50 }, () => ({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        size: Math.random() * 2 + 1,
+        speedX: (Math.random() - 0.5) * 0.3,
+        speedY: (Math.random() - 0.5) * 0.3,
+        opacity: Math.random() * 0.5 + 0.2,
+      }))
+    }
+  }, [])
+
+  // 模拟数据加载
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false)
-    }, 1000)
+    }, 800)
     return () => clearTimeout(timer)
   }, [])
 
-  // Update time
+  // 更新时间
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(new Date())
@@ -72,7 +88,7 @@ export default function Layout({ children }: LayoutProps) {
     return () => clearInterval(interval)
   }, [])
 
-  // Simulate changing data
+  // 模拟数据变化
   useEffect(() => {
     const interval = setInterval(() => {
       setSystemStatus(Math.floor(Math.random() * 10) + 80)
@@ -82,81 +98,51 @@ export default function Layout({ children }: LayoutProps) {
     return () => clearInterval(interval)
   }, [])
 
-  // Particle effect
+  // 优化的粒子动画
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas || !particleEffect) return
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    canvas.width = canvas.offsetWidth
-    canvas.height = canvas.offsetHeight
+    let animationId: number
 
-    const particles: Particle[] = []
-    const particleCount = 80
-
-    class Particle {
-      x: number
-      y: number
-      size: number
-      speedX: number
-      speedY: number
-      color: string
-
-      constructor() {
-        this.x = Math.random() * canvas.width
-        this.y = Math.random() * canvas.height
-        this.size = Math.random() * 3 + 1
-        this.speedX = (Math.random() - 0.5) * 0.5
-        this.speedY = (Math.random() - 0.5) * 0.5
-        this.color = `rgba(${Math.floor(Math.random() * 100) + 100}, ${Math.floor(Math.random() * 100) + 150}, ${Math.floor(Math.random() * 55) + 200}, ${Math.random() * 0.5 + 0.2})`
-      }
-
-      update() {
-        this.x += this.speedX
-        this.y += this.speedY
-
-        if (this.x > canvas.width) this.x = 0
-        if (this.x < 0) this.x = canvas.width
-        if (this.y > canvas.height) this.y = 0
-        if (this.y < 0) this.y = canvas.height
-      }
-
-      draw() {
-        if (!ctx) return
-        ctx.fillStyle = this.color
-        ctx.beginPath()
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
-
-    for (let i = 0; i < particleCount; i++) {
-      particles.push(new Particle())
-    }
-
-    function animate() {
-      if (!ctx || !canvas) return
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      for (const particle of particles) {
-        particle.update()
-        particle.draw()
-      }
-      requestAnimationFrame(animate)
-    }
-    animate()
-
-    const handleResize = () => {
-      if (!canvas) return
+    const resizeCanvas = () => {
       canvas.width = canvas.offsetWidth
       canvas.height = canvas.offsetHeight
     }
-    window.addEventListener("resize", handleResize)
-    return () => {
-      window.removeEventListener("resize", handleResize)
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      particleEffect.particles.forEach((particle) => {
+        particle.x += particle.speedX
+        particle.y += particle.speedY
+
+        if (particle.x > canvas.width) particle.x = 0
+        if (particle.x < 0) particle.x = canvas.width
+        if (particle.y > canvas.height) particle.y = 0
+        if (particle.y < 0) particle.y = canvas.height
+
+        ctx.fillStyle = `rgba(100, 150, 200, ${particle.opacity})`
+        ctx.beginPath()
+        ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2)
+        ctx.fill()
+      })
+
+      animationId = requestAnimationFrame(animate)
     }
-  }, [])
+
+    resizeCanvas()
+    animate()
+
+    window.addEventListener("resize", resizeCanvas)
+    return () => {
+      window.removeEventListener("resize", resizeCanvas)
+      cancelAnimationFrame(animationId)
+    }
+  }, [particleEffect])
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark")
@@ -195,7 +181,7 @@ export default function Layout({ children }: LayoutProps) {
     if (pathname.startsWith("/roles-permissions")) {
       if (pathname === "/roles-permissions/account-list") return "角色 & 权限 - 账号列表"
       if (pathname === "/roles-permissions/role-permissions") return "角色 & 权限 - 角色权限"
-      return "角色 & 权限" // Default for /roles-permissions
+      return "角色 & 权限"
     }
     switch (pathname) {
       case "/":
@@ -205,10 +191,10 @@ export default function Layout({ children }: LayoutProps) {
       case "/order-statistics":
         return "订单统计"
       case "/log-information":
-        return "日志信息" // Changed from /logs to /log-information
+        return "日志信息"
       case "/roles-permissions":
         return "角色 & 权限"
-      case "/access-records": // This will now be a sub-item but title logic can remain
+      case "/access-records":
         return "访问记录"
       case "/frontend-config":
         return "前台配置"
@@ -225,26 +211,27 @@ export default function Layout({ children }: LayoutProps) {
     }
   }
 
-  return (
-    <div
-      className={`${theme} min-h-screen bg-gradient-to-br from-black to-slate-900 text-slate-100 relative overflow-hidden`}
-    >
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full opacity-30" />
-      {isLoading && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="flex flex-col items-center">
-            <div className="relative w-24 h-24">
-              <div className="absolute inset-0 border-4 border-cyan-500/30 rounded-full animate-ping"></div>
-              <div className="absolute inset-2 border-4 border-t-cyan-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-              <div className="absolute inset-4 border-4 border-r-purple-500 border-t-transparent border-b-transparent border-l-transparent rounded-full animate-spin-slow"></div>
-              <div className="absolute inset-6 border-4 border-b-blue-500 border-t-transparent border-r-transparent border-l-transparent rounded-full animate-spin-slower"></div>
-              <div className="absolute inset-8 border-4 border-l-green-500 border-t-transparent border-r-transparent border-b-transparent rounded-full animate-spin"></div>
-            </div>
-            <div className="mt-4 text-cyan-500 font-mono text-sm tracking-wider">系统初始化中...</div>
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-black to-slate-900 flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <div className="relative w-24 h-24">
+            <div className="absolute inset-0 border-4 border-cyan-500/30 rounded-full animate-ping"></div>
+            <div className="absolute inset-2 border-4 border-t-cyan-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+            <div className="absolute inset-4 border-4 border-r-purple-500 border-t-transparent border-b-transparent border-l-transparent rounded-full animate-spin-slow"></div>
+            <div className="absolute inset-6 border-4 border-b-blue-500 border-t-transparent border-r-transparent border-l-transparent rounded-full animate-spin-slower"></div>
+            <div className="absolute inset-8 border-4 border-l-green-500 border-t-transparent border-r-transparent border-b-transparent rounded-full animate-spin"></div>
           </div>
+          <div className="mt-4 text-cyan-500 font-mono text-sm tracking-wider">系统初始化中...</div>
         </div>
-      )}
+      </div>
+    )
+  }
 
+  return (
+    <div className={`${theme} min-h-screen bg-gradient-to-br from-black to-slate-900 text-slate-100 relative overflow-hidden`}>
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full opacity-30 pointer-events-none" />
+      
       <div className="w-full px-4 lg:px-6 xl:px-8 relative z-10 min-h-screen flex flex-col">
         <header className="flex items-center justify-between py-4 border-b border-slate-700/50 mb-4 lg:mb-6">
           <div className="flex items-center space-x-2">
@@ -401,7 +388,7 @@ export default function Layout({ children }: LayoutProps) {
                     open={pathname.startsWith("/roles-permissions") || pathname === "/access-records"}
                     onOpenChange={(isOpen) => {
                       if (isOpen && !pathname.startsWith("/roles-permissions/") && pathname !== "/access-records") {
-                        navigateTo("/roles-permissions/account-list") // Default to account-list when opening
+                        navigateTo("/roles-permissions/account-list")
                       }
                     }}
                   >
@@ -421,21 +408,21 @@ export default function Layout({ children }: LayoutProps) {
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pl-4 space-y-1 py-1">
                       <NavItem
-                        icon={List} // Assuming List or Circle for sub-items
+                        icon={List}
                         label="账号列表"
                         active={pathname === "/roles-permissions/account-list"}
                         onClick={() => navigateTo("/roles-permissions/account-list")}
                         isSubItem
                       />
                       <NavItem
-                        icon={ShieldCheck} // Or Circle
+                        icon={ShieldCheck}
                         label="角色权限"
                         active={pathname === "/roles-permissions/role-permissions"}
                         onClick={() => navigateTo("/roles-permissions/role-permissions")}
                         isSubItem
                       />
                       <NavItem
-                        icon={HistoryIcon} // Or Circle
+                        icon={HistoryIcon}
                         label="访问记录"
                         active={pathname === "/access-records"}
                         onClick={() => navigateTo("/access-records")}
@@ -500,28 +487,18 @@ export default function Layout({ children }: LayoutProps) {
               </h1>
               <p className="text-slate-400 text-sm mt-1">
                 {pathname === "/" && "欢迎来到林北炮台支付系统控制面板"}
-                {pathname === "/transactions" && "查看和管理所有国际支付交易记录"}
-                {pathname === "/merchants" && "管理跨境商户信息和审核流程"}
-                {pathname === "/payment-methods" && "配置和管理国际银行及信用卡支付渠道"}
-                {pathname === "/settlements" && "处理跨境商户结算和资金管理"}
-                {pathname === "/reconciliation" && "国际支付对账管理和数据核对"}
-                {pathname === "/security" && "国际支付安全监控和风险管理"}
-                {pathname === "/settings" && "系统配置和参数设置"}
-                {pathname === "/system" && "实时监控系统运行状态和性能指标"}
-                {pathname === "/access-control" && "管理用户访问权限"}
                 {pathname === "/data-center" && "查看和管理数据中心"}
                 {pathname === "/order-statistics" && "查看订单统计信息"}
                 {pathname === "/log-information" && "查看系统日志信息"}
-                {pathname === "/roles-permissions" && "管理用户角色和权限"}
                 {pathname === "/access-records" && "查看用户访问记录"}
                 {pathname === "/frontend-config" && "配置前台显示"}
                 {pathname === "/frontend-config/linbeipay" && "配置前台显示"}
-                {pathname === "/source-version" && "查看源码和版本信息"}
                 {pathname === "/system-settings" && "配置系统设置"}
-                {pathname === "/faq" && "查看常见问题"}
               </p>
             </div>
-            {children}
+            <div className="animate-fade-in">
+              {children}
+            </div>
           </div>
         </div>
 
@@ -568,7 +545,7 @@ function NavItem({
   return (
     <Button
       variant="ghost"
-      className={`w-full justify-start text-sm ${isSubItem ? "h-8 pl-3" : "h-9"} ${active ? "bg-slate-800/70 text-cyan-400" : "text-slate-400 hover:text-slate-100"}`}
+      className={`w-full justify-start text-sm transition-all duration-200 ${isSubItem ? "h-8 pl-3" : "h-9"} ${active ? "bg-slate-800/70 text-cyan-400" : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50"}`}
       onClick={onClick}
     >
       <Icon
@@ -601,7 +578,7 @@ function StatusItem({ label, value, color }: { label: string; value: number; col
         <div className="text-xs text-slate-400">{value}%</div>
       </div>
       <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-        <div className={`h-full bg-gradient-to-r ${getColor()} rounded-full`} style={{ width: `${value}%` }}></div>
+        <div className={`h-full bg-gradient-to-r ${getColor()} rounded-full transition-all duration-500`} style={{ width: `${value}%` }}></div>
       </div>
     </div>
   )
